@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_admin_scaffold/admin_scaffold.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../controllers/banner_service.dart';
-import '../../models/banners.dart';
+import '../../models/banners.dart' as app_banner;
 
 class UploadBannerScreen extends StatefulWidget {
   const UploadBannerScreen({Key? key}) : super(key: key);
@@ -19,6 +19,36 @@ class _UploadBannerScreenState extends State<UploadBannerScreen> {
   final _formKey = GlobalKey<FormState>();
   dynamic _selectedImage;
   String? _imageUrl;
+  List<app_banner.Banner> _banners = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanners();
+  }
+
+  Future<void> _loadBanners() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final response = await BannerService.getBanners();
+
+    if (response.success) {
+      setState(() {
+        _banners = response.data ?? [];
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar banners: ${response.message}')),
+      );
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   Future<void> _pickImage() async {
     if (kIsWeb) {
@@ -67,6 +97,7 @@ class _UploadBannerScreenState extends State<UploadBannerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Banner subido exitosamente')),
         );
+        _loadBanners();
         _cancel();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,32 +195,49 @@ class _UploadBannerScreenState extends State<UploadBannerScreen> {
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                _buildImagePreview(),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _pickImage,
-                  child: const Text('Seleccionar Banner'),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Subir Nuevo Banner',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Form(
+                key: _formKey,
+                child: Column(
                   children: [
+                    _buildImagePreview(),
+                    const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _save,
-                      child: const Text('Subir'),
+                      onPressed: _pickImage,
+                      child: const Text('Seleccionar Banner'),
                     ),
-                    ElevatedButton(
-                      onPressed: _cancel,
-                      child: const Text('Cancelar'),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _save,
+                          child: const Text('Subir'),
+                        ),
+                        ElevatedButton(
+                          onPressed: _cancel,
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'Banners Existentes',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              _buildBannersList(),
+            ],
           ),
         ),
       ),
@@ -206,5 +254,43 @@ class _UploadBannerScreenState extends State<UploadBannerScreen> {
     } else {
       return Image.file(_selectedImage, height: 200);
     }
+  }
+
+  Widget _buildBannersList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_banners.isEmpty) {
+      return const Center(child: Text('No hay banners disponibles.'));
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 2,
+      ),
+      itemCount: _banners.length,
+      itemBuilder: (context, index) {
+        final banner = _banners[index];
+        return Card(
+          elevation: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Image.network(
+              banner.image,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(child: Text('Error al cargar la imagen'));
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 }
